@@ -58,9 +58,9 @@ export default function RegisterPage() {
         await loginDog(data.id)
         router.push('/feed')
       }
-    } catch (error: any) {
+    } catch (error: unknown) {
       console.error('Error registering dog:', error)
-      alert(error.message || 'Failed to register dog')
+      alert(error instanceof Error ? error.message : 'Failed to register dog')
     } finally {
       setLoading(false)
     }

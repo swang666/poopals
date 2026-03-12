@@ -1,7 +1,6 @@
 'use client'
 
 import { useState } from 'react'
-import { useRouter } from 'next/navigation'
 import { supabase } from '@/lib/supabase'
 import { useDogAuth } from '@/contexts/DogAuthContext'
 import { Button } from '@/components/ui/button'
@@ -9,8 +8,15 @@ import { Textarea } from '@/components/ui/textarea'
 import { Switch } from '@/components/ui/switch'
 import { Label } from '@/components/ui/label'
 
+export interface AIAnalysisResult {
+  consistency: number
+  color?: { hex?: string; name?: string } | string
+  summary?: string
+  objects_detected?: boolean
+}
+
 interface ReportCardProps {
-  analysis: any
+  analysis: AIAnalysisResult
   imageFile: File
   onCancel: () => void
 }
@@ -20,7 +26,6 @@ export function ReportCard({ analysis, imageFile, onCancel }: ReportCardProps) {
   const [note, setNote] = useState('')
   const [sharePhoto, setSharePhoto] = useState(false)
   const { currentDog } = useDogAuth()
-  const router = useRouter()
 
   const handleSaveAndShare = async () => {
     if (!currentDog) return
@@ -31,7 +36,7 @@ export function ReportCard({ analysis, imageFile, onCancel }: ReportCardProps) {
       const fileName = `${currentDog.id}-${Date.now()}.jpg`
       let imageUrl = null
 
-      const { data: uploadData, error: uploadError } = await supabase
+      const { error: uploadError } = await supabase
         .storage
         .from('poop_images')
         .upload(fileName, imageFile)
@@ -48,12 +53,15 @@ export function ReportCard({ analysis, imageFile, onCancel }: ReportCardProps) {
       const score = analysis.consistency === 4 ? 10 : 
                     (analysis.consistency > 4 ? 10 - (analysis.consistency - 4) * 2 : 10 - (4 - analysis.consistency) * 2)
 
+      const analysisColor = analysis.color as { name?: string, hex?: string } | string | undefined;
+      const colorValue = typeof analysisColor === 'string' ? analysisColor : analysisColor?.name;
+
       // 3. Save to Database
       const { error: dbError } = await supabase.from('poops').insert([{
         dog_id: currentDog.id,
         image_url: imageUrl,
         consistency: String(analysis.consistency),
-        color: analysis.color?.name || analysis.color,
+        color: colorValue || 'Brown',
         anomalies: analysis.objects_detected ? 'Yes' : 'None',
         health_score: Math.max(1, score),
         summary: analysis.summary,
@@ -96,9 +104,9 @@ export function ReportCard({ analysis, imageFile, onCancel }: ReportCardProps) {
             <div className="flex items-center gap-2">
               <div 
                 className="w-4 h-4 rounded-full border border-gray-300" 
-                style={{ backgroundColor: analysis.color?.hex || '#8B4513' }}
+                style={{ backgroundColor: (typeof analysis.color === 'object' ? analysis.color?.hex : '#8B4513') || '#8B4513' }}
               />
-              <span className="font-bold text-amber-800 line-clamp-1">{analysis.color?.name || 'Brown'}</span>
+              <span className="font-bold text-amber-800 line-clamp-1">{(typeof analysis.color === 'object' ? analysis.color?.name : analysis.color) || 'Brown'}</span>
             </div>
           </div>
         </div>
