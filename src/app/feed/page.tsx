@@ -5,7 +5,7 @@ import { useRouter } from 'next/navigation'
 import { useDogAuth } from '@/contexts/DogAuthContext'
 import { Button } from '@/components/ui/button'
 import { ScatScanner } from '@/components/ScatScanner'
-import { ReportCard } from '@/components/ReportCard'
+import { ReportCard, AIAnalysisResult } from '@/components/ReportCard'
 import { analyzeScatImage } from '@/app/actions/gemini'
 import { supabase } from '@/lib/supabase'
 import {
@@ -18,20 +18,44 @@ import {
 } from "@/components/ui/dialog"
 import { Input } from "@/components/ui/input"
 
+interface FeedItem {
+  id: string
+  created_at: string
+  health_score: number
+  privacy_setting: string
+  image_url?: string
+  summary?: string
+  note?: string
+  consistency?: string
+  color?: string
+  anomalies?: string
+  dogs?: {
+    id: string
+    name: string
+    breed: string | null
+  }
+}
+
+interface DogSearchResult {
+  id: string
+  name: string
+  breed: string | null
+}
+
 export default function FeedPage() {
   const { currentDog, logoutDog, isLoading } = useDogAuth()
   const router = useRouter()
   
   const [isScanning, setIsScanning] = useState(false)
-  const [analysisResult, setAnalysisResult] = useState<any>(null)
+  const [analysisResult, setAnalysisResult] = useState<AIAnalysisResult | null>(null)
   const [capturedImage, setCapturedImage] = useState<File | null>(null)
   const [isAnalyzing, setIsAnalyzing] = useState(false)
-  const [feedItems, setFeedItems] = useState<any[]>([])
+  const [feedItems, setFeedItems] = useState<FeedItem[]>([])
   const [loadingFeed, setLoadingFeed] = useState(true)
 
   // Friend Search State
   const [searchQuery, setSearchQuery] = useState('')
-  const [searchResults, setSearchResults] = useState<any[]>([])
+  const [searchResults, setSearchResults] = useState<DogSearchResult[]>([])
   const [isSearching, setIsSearching] = useState(false)
 
   useEffect(() => {
@@ -283,7 +307,7 @@ export default function FeedPage() {
                 <div className="p-4">
                   <p className="font-medium text-gray-800 mb-2">{item.summary}</p>
                   {item.note && (
-                    <p className="text-sm text-gray-600 border-l-2 border-amber-200 pl-3 italic mb-3">"{item.note}"</p>
+                    <p className="text-sm text-gray-600 border-l-2 border-amber-200 pl-3 italic mb-3">&quot;{String(item.note)}&quot;</p>
                   )}
                   
                   <div className="flex gap-2 text-xs mt-3">

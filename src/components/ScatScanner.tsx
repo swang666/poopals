@@ -3,7 +3,7 @@
 import { useState, useRef } from 'react'
 import { Button } from '@/components/ui/button'
 import { Card, CardContent } from '@/components/ui/card'
-import { Camera, Image as ImageIcon, RefreshCcw, Check } from 'lucide-react'
+import { Camera, RefreshCcw, Check } from 'lucide-react'
 
 interface ScatScannerProps {
   onImageCaptured: (file: File) => void
