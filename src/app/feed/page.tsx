@@ -60,6 +60,13 @@ export default function FeedPage() {
   const [searchResults, setSearchResults] = useState<DogSearchResult[]>([])
   const [isSearching, setIsSearching] = useState(false)
 
+  // Image Reveal State
+  const [revealedImages, setRevealedImages] = useState<Record<string, boolean>>({})
+
+  const toggleImageReveal = (id: string) => {
+    setRevealedImages(prev => ({ ...prev, [id]: !prev[id] }))
+  }
+
   useEffect(() => {
     if (!isLoading && !currentDog) {
       router.push('/login')
@@ -316,9 +323,36 @@ export default function FeedPage() {
                 </div>
                 
                 {item.privacy_setting === 'photo_and_score' && item.image_url ? (
-                  <div className="aspect-[4/3] w-full bg-gray-100 relative">
+                  <div className="aspect-[4/3] w-full bg-gray-100 relative overflow-hidden group">
                      {/* eslint-disable-next-line @next/next/no-img-element */}
-                    <img src={item.image_url} alt="Business Trip" className="w-full h-full object-cover" />
+                    <img 
+                      src={item.image_url} 
+                      alt="Business Trip" 
+                      className={`w-full h-full object-cover transition-all duration-300 ${!revealedImages[item.id] ? 'blur-xl scale-110 brightness-75' : ''}`} 
+                    />
+                    
+                    {!revealedImages[item.id] && (
+                      <div className="absolute inset-0 flex items-center justify-center bg-black/10 transition-opacity">
+                        <Button 
+                          variant="secondary" 
+                          className="rounded-full shadow-lg bg-white/90 hover:bg-white text-gray-700 font-medium"
+                          onClick={() => toggleImageReveal(item.id)}
+                        >
+                          👁️ View Photo
+                        </Button>
+                      </div>
+                    )}
+                    
+                    {revealedImages[item.id] && (
+                      <Button 
+                        variant="ghost" 
+                        size="sm"
+                        className="absolute top-2 right-2 rounded-full bg-black/40 text-white hover:bg-black/60 hover:text-white"
+                        onClick={() => toggleImageReveal(item.id)}
+                      >
+                        Hide
+                      </Button>
+                    )}
                   </div>
                 ) : (
                    <div className="bg-amber-50 p-6 text-center text-amber-800/60 italic text-sm">
