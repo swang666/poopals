@@ -33,6 +33,7 @@ interface FeedItem {
     id: string
     name: string
     breed: string | null
+    profile_picture_url?: string | null
   }
 }
 
@@ -40,6 +41,7 @@ interface DogSearchResult {
   id: string
   name: string
   breed: string | null
+  profile_picture_url?: string | null
 }
 
 export default function FeedPage() {
@@ -75,7 +77,7 @@ export default function FeedPage() {
         .from('poops')
         .select(`
           *,
-          dogs ( id, name, breed )
+          dogs ( id, name, breed, profile_picture_url )
         `)
         .order('created_at', { ascending: false })
         .limit(20)
@@ -100,7 +102,7 @@ export default function FeedPage() {
     try {
       const { data, error } = await supabase
         .from('dogs')
-        .select('id, name, breed')
+        .select('id, name, breed, profile_picture_url')
         .ilike('name', `%${query}%`)
         .neq('id', currentDog?.id)
         .limit(5)
@@ -241,9 +243,17 @@ export default function FeedPage() {
                   ) : searchResults.length > 0 ? (
                     searchResults.map(dog => (
                       <div key={dog.id} className="flex items-center justify-between p-2 border rounded">
-                        <div>
-                          <p className="font-medium text-sm">{dog.name}</p>
-                          <p className="text-xs text-gray-500">{dog.breed || 'Unknown breed'}</p>
+                        <div className="flex items-center gap-2">
+                          {dog.profile_picture_url ? (
+                            /* eslint-disable-next-line @next/next/no-img-element */
+                            <img src={dog.profile_picture_url} className="w-8 h-8 rounded-full object-cover" alt="avatar" />
+                          ) : (
+                            <div className="w-8 h-8 rounded-full bg-gray-100 flex items-center justify-center text-xs">🐶</div>
+                          )}
+                          <div>
+                            <p className="font-medium text-sm">{dog.name}</p>
+                            <p className="text-xs text-gray-500">{dog.breed || 'Unknown breed'}</p>
+                          </div>
                         </div>
                         <Button size="sm" variant="outline" onClick={() => handleAddFriend(dog.id)}>
                           Add
@@ -257,13 +267,20 @@ export default function FeedPage() {
               </div>
             </DialogContent>
           </Dialog>
+           <Button variant="outline" size="sm" onClick={() => router.push('/profile')}>Edit Profile</Button>
            <Button variant="outline" size="sm" onClick={() => logoutDog()}>Logout</Button>
         </div>
       </header>
       
       <main className="max-w-md mx-auto p-4 space-y-6">
-        <div className="bg-amber-100 rounded-lg p-4 text-amber-800 text-center">
-          <p className="font-semibold mb-1">Welcome back, {currentDog.name}! 🐶</p>
+        <div className="bg-amber-100 rounded-lg p-4 text-amber-800 text-center flex flex-col items-center">
+          {currentDog.profile_picture_url ? (
+             /* eslint-disable-next-line @next/next/no-img-element */
+             <img src={currentDog.profile_picture_url} alt="Profile" className="w-16 h-16 rounded-full border-2 border-white mb-2 object-cover" />
+          ) : (
+             <div className="w-16 h-16 rounded-full bg-white border-2 border-amber-200 mb-2 flex items-center justify-center text-3xl">🐶</div>
+          )}
+          <p className="font-semibold mb-1">Welcome back, {currentDog.name}!</p>
           <p className="text-sm opacity-80">This is where the magic happens.</p>
         </div>
         
@@ -280,9 +297,14 @@ export default function FeedPage() {
               <div key={item.id} className="bg-white rounded-xl shadow-sm border overflow-hidden">
                 <div className="p-4 flex items-center justify-between border-b">
                   <div className="flex items-center gap-2">
-                    <div className="w-10 h-10 bg-amber-100 rounded-full flex items-center justify-center text-lg">
-                      🐶
-                    </div>
+                    {item.dogs?.profile_picture_url ? (
+                      /* eslint-disable-next-line @next/next/no-img-element */
+                      <img src={item.dogs.profile_picture_url} alt={item.dogs.name} className="w-10 h-10 rounded-full object-cover" />
+                    ) : (
+                      <div className="w-10 h-10 bg-amber-100 rounded-full flex items-center justify-center text-lg">
+                        🐶
+                      </div>
+                    )}
                     <div>
                       <p className="font-semibold text-gray-800">{item.dogs?.name}</p>
                       <p className="text-xs text-gray-500">{new Date(item.created_at).toLocaleString()}</p>
