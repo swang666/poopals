@@ -4,6 +4,7 @@ import { useState, useEffect } from 'react'
 import { useRouter } from 'next/navigation'
 import { useDogAuth } from '@/contexts/DogAuthContext'
 import { Button } from '@/components/ui/button'
+import { Trash2 } from 'lucide-react'
 import { ScatScanner } from '@/components/ScatScanner'
 import { ReportCard, AIAnalysisResult } from '@/components/ReportCard'
 import { analyzeScatImage } from '@/app/actions/gemini'
@@ -12,6 +13,7 @@ import {
   Dialog,
   DialogContent,
   DialogDescription,
+  DialogFooter,
   DialogHeader,
   DialogTitle,
   DialogTrigger,
@@ -33,6 +35,7 @@ interface FeedItem {
     id: string
     name: string
     breed: string | null
+    profile_picture_url?: string | null
   }
 }
 
@@ -40,12 +43,13 @@ interface DogSearchResult {
   id: string
   name: string
   breed: string | null
+  profile_picture_url?: string | null
 }
 
 export default function FeedPage() {
   const { currentDog, logoutDog, isLoading } = useDogAuth()
   const router = useRouter()
-  
+
   const [isScanning, setIsScanning] = useState(false)
   const [analysisResult, setAnalysisResult] = useState<AIAnalysisResult | null>(null)
   const [capturedImage, setCapturedImage] = useState<File | null>(null)
@@ -57,6 +61,14 @@ export default function FeedPage() {
   const [searchQuery, setSearchQuery] = useState('')
   const [searchResults, setSearchResults] = useState<DogSearchResult[]>([])
   const [isSearching, setIsSearching] = useState(false)
+
+  // Image Reveal State
+  const [revealedImages, setRevealedImages] = useState<Record<string, boolean>>({})
+  const [postToDelete, setPostToDelete] = useState<string | null>(null)
+
+  const toggleImageReveal = (id: string) => {
+    setRevealedImages(prev => ({ ...prev, [id]: !prev[id] }))
+  }
 
   useEffect(() => {
     if (!isLoading && !currentDog) {
@@ -75,7 +87,7 @@ export default function FeedPage() {
         .from('poops')
         .select(`
           *,
-          dogs ( id, name, breed )
+          dogs ( id, name, breed, profile_picture_url )
         `)
         .order('created_at', { ascending: false })
         .limit(20)
@@ -100,7 +112,7 @@ export default function FeedPage() {
     try {
       const { data, error } = await supabase
         .from('dogs')
-        .select('id, name, breed')
+        .select('id, name, breed, profile_picture_url')
         .ilike('name', `%${query}%`)
         .neq('id', currentDog?.id)
         .limit(5)
@@ -124,7 +136,7 @@ export default function FeedPage() {
           dog_id_2: friendId,
           status: 'accepted' // Auto-accepting for the prototype
         })
-      
+
       if (error) {
         if (error.code === '23505') {
           alert("Already in your pack!")
@@ -132,13 +144,41 @@ export default function FeedPage() {
           throw error
         }
       } else {
-         alert("Added to pack successfully!")
-         setSearchQuery('')
-         setSearchResults([])
+        alert("Added to pack successfully!")
+        setSearchQuery('')
+        setSearchResults([])
       }
     } catch (err) {
       console.error(err)
       alert("Failed to add friend.")
+    }
+  }
+
+  const handleDeletePost = async () => {
+    if (!postToDelete) return
+
+    try {
+      console.log("Sending delete request to Supabase...")
+      const { data, error } = await supabase.from('poops').delete().eq('id', postToDelete).select()
+      console.log("Supabase responded with:", { data, error })
+
+      if (error) throw error
+
+      if (!data || data.length === 0) {
+         console.warn("Delete request succeeded but affected 0 rows. RLS likely blocked it!")
+         alert("Database rejected the deletion! Please make sure you ran the 'Allow public delete' SQL command in your Supabase dashboard.")
+         setPostToDelete(null)
+         return
+      }
+
+      console.log("Successfully deleted post from database.")
+      // Remove from UI immediately
+      setFeedItems(prev => prev.filter(item => item.id !== postToDelete))
+      setPostToDelete(null)
+    } catch (error) {
+      console.error("Failed to delete post:", error)
+      alert("Failed to delete post. Check your browser console.")
+      setPostToDelete(null)
     }
   }
 
@@ -158,16 +198,16 @@ export default function FeedPage() {
         const base64String = reader.result as string;
         // Strip out the data url prefix for Gemini API
         const base64Data = base64String.split(',')[1];
-        
+
         const result = await analyzeScatImage(base64Data)
         setAnalysisResult(result)
         setIsAnalyzing(false)
       };
     } catch (error) {
-       console.error(error)
-       alert("AI Analysis failed!")
-       setIsAnalyzing(false)
-       setCapturedImage(null)
+      console.error(error)
+      alert("AI Analysis failed!")
+      setIsAnalyzing(false)
+      setCapturedImage(null)
     }
   }
 
@@ -200,10 +240,10 @@ export default function FeedPage() {
   if (analysisResult && capturedImage) {
     return (
       <div className="min-h-screen bg-gray-50 flex items-center justify-center p-4">
-        <ReportCard 
-          analysis={analysisResult} 
-          imageFile={capturedImage} 
-          onCancel={handleCancelLogging} 
+        <ReportCard
+          analysis={analysisResult}
+          imageFile={capturedImage}
+          onCancel={handleCancelLogging}
         />
       </div>
     )
@@ -217,7 +257,7 @@ export default function FeedPage() {
           <p className="text-sm text-gray-500 font-medium">Dog Park</p>
         </div>
         <div className="flex gap-2">
-           <Dialog>
+          <Dialog>
             <DialogTrigger className="inline-flex items-center justify-center whitespace-nowrap rounded-md text-sm font-medium transition-colors focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring disabled:pointer-events-none disabled:opacity-50 bg-secondary text-secondary-foreground shadow-sm hover:bg-secondary/80 h-8 px-3">
               Find Pack
             </DialogTrigger>
@@ -229,21 +269,29 @@ export default function FeedPage() {
                 </DialogDescription>
               </DialogHeader>
               <div className="space-y-4 py-2">
-                <Input 
-                  placeholder="Search names (e.g., Buster)..." 
+                <Input
+                  placeholder="Search names (e.g., Buster)..."
                   value={searchQuery}
                   onChange={(e) => handleSearchFriends(e.target.value)}
                 />
-                
+
                 <div className="space-y-2">
                   {isSearching ? (
                     <p className="text-sm text-center text-gray-500">Sniffing...</p>
                   ) : searchResults.length > 0 ? (
                     searchResults.map(dog => (
                       <div key={dog.id} className="flex items-center justify-between p-2 border rounded">
-                        <div>
-                          <p className="font-medium text-sm">{dog.name}</p>
-                          <p className="text-xs text-gray-500">{dog.breed || 'Unknown breed'}</p>
+                        <div className="flex items-center gap-2">
+                          {dog.profile_picture_url ? (
+                            /* eslint-disable-next-line @next/next/no-img-element */
+                            <img src={dog.profile_picture_url} className="w-8 h-8 rounded-full object-cover" alt="avatar" />
+                          ) : (
+                            <div className="w-8 h-8 rounded-full bg-gray-100 flex items-center justify-center text-xs">🐶</div>
+                          )}
+                          <div>
+                            <p className="font-medium text-sm">{dog.name}</p>
+                            <p className="text-xs text-gray-500">{dog.breed || 'Unknown breed'}</p>
+                          </div>
                         </div>
                         <Button size="sm" variant="outline" onClick={() => handleAddFriend(dog.id)}>
                           Add
@@ -257,16 +305,23 @@ export default function FeedPage() {
               </div>
             </DialogContent>
           </Dialog>
-           <Button variant="outline" size="sm" onClick={() => logoutDog()}>Logout</Button>
+          <Button variant="outline" size="sm" onClick={() => router.push('/profile')}>Edit Profile</Button>
+          <Button variant="outline" size="sm" onClick={() => logoutDog()}>Logout</Button>
         </div>
       </header>
-      
+
       <main className="max-w-md mx-auto p-4 space-y-6">
-        <div className="bg-amber-100 rounded-lg p-4 text-amber-800 text-center">
-          <p className="font-semibold mb-1">Welcome back, {currentDog.name}! 🐶</p>
+        <div className="bg-amber-100 rounded-lg p-4 text-amber-800 text-center flex flex-col items-center">
+          {currentDog.profile_picture_url ? (
+            /* eslint-disable-next-line @next/next/no-img-element */
+            <img src={currentDog.profile_picture_url} alt="Profile" className="w-16 h-16 rounded-full border-2 border-white mb-2 object-cover" />
+          ) : (
+            <div className="w-16 h-16 rounded-full bg-white border-2 border-amber-200 mb-2 flex items-center justify-center text-3xl">🐶</div>
+          )}
+          <p className="font-semibold mb-1">Welcome back, {currentDog.name}!</p>
           <p className="text-sm opacity-80">This is where the magic happens.</p>
         </div>
-        
+
         {/* Feed Items */}
         {loadingFeed ? (
           <div className="text-center py-10 text-gray-500">Loading feed...</div>
@@ -280,47 +335,90 @@ export default function FeedPage() {
               <div key={item.id} className="bg-white rounded-xl shadow-sm border overflow-hidden">
                 <div className="p-4 flex items-center justify-between border-b">
                   <div className="flex items-center gap-2">
-                    <div className="w-10 h-10 bg-amber-100 rounded-full flex items-center justify-center text-lg">
-                      🐶
-                    </div>
+                    {item.dogs?.profile_picture_url ? (
+                      /* eslint-disable-next-line @next/next/no-img-element */
+                      <img src={item.dogs.profile_picture_url} alt={item.dogs.name} className="w-10 h-10 rounded-full object-cover" />
+                    ) : (
+                      <div className="w-10 h-10 bg-amber-100 rounded-full flex items-center justify-center text-lg">
+                        🐶
+                      </div>
+                    )}
                     <div>
                       <p className="font-semibold text-gray-800">{item.dogs?.name}</p>
                       <p className="text-xs text-gray-500">{new Date(item.created_at).toLocaleString()}</p>
                     </div>
                   </div>
-                  <div className="bg-amber-50 text-amber-800 px-3 py-1 rounded-full font-bold text-sm">
-                    Score: {item.health_score}/10
+                  <div className="flex items-center gap-2">
+                    {item.dogs?.id === currentDog.id && (
+                      <button
+                        onClick={() => setPostToDelete(item.id)}
+                        className="text-gray-400 hover:text-red-500 transition-colors mr-2"
+                        title="Delete"
+                      >
+                        <Trash2 className="w-4 h-4" />
+                      </button>
+                    )}
+                    <div className="bg-amber-50 text-amber-800 px-3 py-1 rounded-full font-bold text-sm">
+                      Score: {item.health_score}/10
+                    </div>
                   </div>
                 </div>
-                
+
                 {item.privacy_setting === 'photo_and_score' && item.image_url ? (
-                  <div className="aspect-[4/3] w-full bg-gray-100 relative">
-                     {/* eslint-disable-next-line @next/next/no-img-element */}
-                    <img src={item.image_url} alt="Business Trip" className="w-full h-full object-cover" />
+                  <div className="aspect-[4/3] w-full bg-gray-100 relative overflow-hidden group">
+                    {/* eslint-disable-next-line @next/next/no-img-element */}
+                    <img
+                      src={item.image_url}
+                      alt="Business Trip"
+                      className={`w-full h-full object-cover transition-all duration-300 ${!revealedImages[item.id] ? 'blur-xl scale-110 brightness-75' : ''}`}
+                    />
+
+                    {!revealedImages[item.id] && (
+                      <div className="absolute inset-0 flex items-center justify-center bg-black/10 transition-opacity">
+                        <Button
+                          variant="secondary"
+                          className="rounded-full shadow-lg bg-white/90 hover:bg-white text-gray-700 font-medium"
+                          onClick={() => toggleImageReveal(item.id)}
+                        >
+                          👁️ View Photo
+                        </Button>
+                      </div>
+                    )}
+
+                    {revealedImages[item.id] && (
+                      <Button
+                        variant="ghost"
+                        size="sm"
+                        className="absolute top-2 right-2 rounded-full bg-black/40 text-white hover:bg-black/60 hover:text-white"
+                        onClick={() => toggleImageReveal(item.id)}
+                      >
+                        Hide
+                      </Button>
+                    )}
                   </div>
                 ) : (
-                   <div className="bg-amber-50 p-6 text-center text-amber-800/60 italic text-sm">
-                     Photo hidden by privacy settings
-                   </div>
+                  <div className="bg-amber-50 p-6 text-center text-amber-800/60 italic text-sm">
+                    Photo hidden by privacy settings
+                  </div>
                 )}
-                
+
                 <div className="p-4">
                   <p className="font-medium text-gray-800 mb-2">{item.summary}</p>
                   {item.note && (
                     <p className="text-sm text-gray-600 border-l-2 border-amber-200 pl-3 italic mb-3">&quot;{String(item.note)}&quot;</p>
                   )}
-                  
+
                   <div className="flex gap-2 text-xs mt-3">
                     <span className="bg-gray-100 px-2 py-1 rounded text-gray-600">
                       Vibe: {item.consistency}/7
                     </span>
                     <span className="bg-gray-100 px-2 py-1 rounded flex items-center gap-1 text-gray-600">
-                      <span className="w-2 h-2 rounded-full inline-block" style={{backgroundColor: item.color || '#000'}} />
+                      <span className="w-2 h-2 rounded-full inline-block" style={{ backgroundColor: item.color || '#000' }} />
                       {item.color}
                     </span>
-                     {item.anomalies !== 'None' && (
-                        <span className="bg-red-50 text-red-600 px-2 py-1 rounded">⚠️ Anomalies</span>
-                     )}
+                    {item.anomalies !== 'None' && (
+                      <span className="bg-red-50 text-red-600 px-2 py-1 rounded">⚠️ Anomalies</span>
+                    )}
                   </div>
                 </div>
               </div>
@@ -328,16 +426,31 @@ export default function FeedPage() {
           </div>
         )}
       </main>
-      
+
       {/* Floating Action Button (Log Business) */}
       <div className="fixed bottom-6 left-1/2 transform -translate-x-1/2">
-        <Button 
+        <Button
           className="rounded-full h-14 px-8 shadow-lg bg-amber-600 hover:bg-amber-700 text-white font-bold text-lg"
           onClick={() => setIsScanning(true)}
         >
           💩 Log Business
         </Button>
       </div>
+
+      <Dialog open={postToDelete !== null} onOpenChange={(open) => !open && setPostToDelete(null)}>
+        <DialogContent className="sm:max-w-md">
+          <DialogHeader>
+            <DialogTitle>Delete Business Trip?</DialogTitle>
+            <DialogDescription>
+              Are you sure you want to delete this trip from your pack&apos;s feed? This action cannot be undone.
+            </DialogDescription>
+          </DialogHeader>
+          <DialogFooter className="flex flex-row justify-end space-x-2 pt-4">
+            <Button variant="outline" onClick={() => setPostToDelete(null)}>Cancel</Button>
+            <Button className="bg-red-600 hover:bg-red-700 text-white" onClick={handleDeletePost}>Delete</Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
     </div>
   )
 }

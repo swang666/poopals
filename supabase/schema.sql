@@ -6,6 +6,7 @@ CREATE TABLE dogs (
   age INTEGER,
   weight NUMERIC,
   primary_food_brand TEXT,
+  profile_picture_url TEXT,
   created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW()
 );
 
@@ -51,6 +52,10 @@ FOR SELECT USING (true);
 CREATE POLICY "Allow public insert of poops" ON poops 
 FOR INSERT WITH CHECK (true);
 
+-- Allow public deletion of poops
+CREATE POLICY "Allow public delete of poops" ON poops 
+FOR DELETE USING (true);
+
 
 -- Create Friendships Table
 CREATE TABLE friendships (
@@ -75,3 +80,26 @@ FOR INSERT WITH CHECK (true);
 
 CREATE POLICY "Allow public update of friendships" ON friendships 
 FOR UPDATE USING (true);
+
+-- Run this command manually to update existing dogs table if already created:
+-- ALTER TABLE dogs ADD COLUMN profile_picture_url TEXT;
+
+-- Create the poop_images storage bucket if it doesn't exist
+INSERT INTO storage.buckets (id, name, public) 
+VALUES ('poop_images', 'poop_images', true)
+ON CONFLICT (id) DO NOTHING;
+
+-- Allow public read access (everyone can see the poops)
+CREATE POLICY "Public read poops" 
+ON storage.objects FOR SELECT 
+USING (bucket_id = 'poop_images');
+
+-- Allow anon insertions (your frontend users can upload their own poops)
+CREATE POLICY "Anon insert poops" 
+ON storage.objects FOR INSERT 
+WITH CHECK (bucket_id = 'poop_images');
+
+-- Allow anon updates
+CREATE POLICY "Anon update poops" 
+ON storage.objects FOR UPDATE 
+USING (bucket_id = 'poop_images');

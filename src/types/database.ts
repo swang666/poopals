@@ -5,6 +5,7 @@ export type Dog = {
   age: number | null
   weight: number | null
   primary_food_brand: string | null
+  profile_picture_url: string | null
   created_at: string
 }
 
