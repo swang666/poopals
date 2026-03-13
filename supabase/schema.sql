@@ -79,3 +79,23 @@ FOR UPDATE USING (true);
 
 -- Run this command manually to update existing dogs table if already created:
 -- ALTER TABLE dogs ADD COLUMN profile_picture_url TEXT;
+
+-- Create the poop_images storage bucket if it doesn't exist
+INSERT INTO storage.buckets (id, name, public) 
+VALUES ('poop_images', 'poop_images', true)
+ON CONFLICT (id) DO NOTHING;
+
+-- Allow public read access (everyone can see the poops)
+CREATE POLICY "Public read poops" 
+ON storage.objects FOR SELECT 
+USING (bucket_id = 'poop_images');
+
+-- Allow anon insertions (your frontend users can upload their own poops)
+CREATE POLICY "Anon insert poops" 
+ON storage.objects FOR INSERT 
+WITH CHECK (bucket_id = 'poop_images');
+
+-- Allow anon updates
+CREATE POLICY "Anon update poops" 
+ON storage.objects FOR UPDATE 
+USING (bucket_id = 'poop_images');
