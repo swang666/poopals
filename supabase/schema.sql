@@ -52,6 +52,10 @@ FOR SELECT USING (true);
 CREATE POLICY "Allow public insert of poops" ON poops 
 FOR INSERT WITH CHECK (true);
 
+-- Allow public deletion of poops
+CREATE POLICY "Allow public delete of poops" ON poops 
+FOR DELETE USING (true);
+
 
 -- Create Friendships Table
 CREATE TABLE friendships (

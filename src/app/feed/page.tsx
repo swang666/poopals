@@ -4,6 +4,7 @@ import { useState, useEffect } from 'react'
 import { useRouter } from 'next/navigation'
 import { useDogAuth } from '@/contexts/DogAuthContext'
 import { Button } from '@/components/ui/button'
+import { Trash2 } from 'lucide-react'
 import { ScatScanner } from '@/components/ScatScanner'
 import { ReportCard, AIAnalysisResult } from '@/components/ReportCard'
 import { analyzeScatImage } from '@/app/actions/gemini'
@@ -148,6 +149,21 @@ export default function FeedPage() {
     } catch (err) {
       console.error(err)
       alert("Failed to add friend.")
+    }
+  }
+
+  const handleDeletePost = async (postId: string) => {
+    if (!window.confirm("Are you sure you want to delete this trip from your pack's feed?")) return
+
+    try {
+      const { error } = await supabase.from('poops').delete().eq('id', postId)
+      if (error) throw error
+
+      // Remove from UI immediately
+      setFeedItems(prev => prev.filter(item => item.id !== postId))
+    } catch (error) {
+      console.error("Failed to delete post:", error)
+      alert("Failed to delete post. Check console.")
     }
   }
 
@@ -317,8 +333,19 @@ export default function FeedPage() {
                       <p className="text-xs text-gray-500">{new Date(item.created_at).toLocaleString()}</p>
                     </div>
                   </div>
-                  <div className="bg-amber-50 text-amber-800 px-3 py-1 rounded-full font-bold text-sm">
-                    Score: {item.health_score}/10
+                  <div className="flex items-center gap-2">
+                     {item.dogs?.id === currentDog.id && (
+                        <button 
+                           onClick={() => handleDeletePost(item.id)}
+                           className="text-gray-400 hover:text-red-500 transition-colors mr-2"
+                           title="Delete"
+                        >
+                           <Trash2 className="w-4 h-4" />
+                        </button>
+                     )}
+                    <div className="bg-amber-50 text-amber-800 px-3 py-1 rounded-full font-bold text-sm">
+                      Score: {item.health_score}/10
+                    </div>
                   </div>
                 </div>
                 
